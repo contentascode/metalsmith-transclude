@@ -4,6 +4,7 @@ const async = require('async');
 const fs = require('fs');
 const path = require('path');
 const minimatch = require('minimatch');
+const stream = require('stream');
 
 /**
  * Expose `plugin`.
@@ -58,41 +59,45 @@ function plugin(options) {
             });
         }
 
-        // function resolveMetalsmith(url) {
-        //   const isLocalUrl = /^[^ ()"']+/;
-        //   debug('resolveMetalsmith.before isLocal test');
-        //   if (!isLocalUrl.test(url)) return null;
-        //
-        //   // const relativePath = path.dirname(sourcePath);
-        //   const targetKey = path.join(path.dirname(key), url);
-        //   if (!files[targetKey]) return null;
-        //   debug('resolved to target key:', targetKey);
-        //   const content = files[targetKey].contents.toString();
-        //
-        //   return {
-        //     content,
-        //     url: path.join(metalsmith.source(), targetKey)
-        //   };
-        // }
-        //
-        // function resolveRelativeLocalUrl(url, sourcePath) {
-        //   const isLocalUrl = /^[^ ()"']+/;
-        //   debug('resolveRelativeLocalUrl.before isLocal test');
-        //   if (!isLocalUrl.test(url)) return null;
-        //
-        //   const relativePath = path.dirname(path.join(metalsmith.source(), sourcePath));
-        //   const localUrl = path.join(relativePath, url);
-        //   const content = fs.createReadStream(localUrl, { encoding: 'utf8' });
-        //   debug('resolved to localUrl:', localUrl);
-        //   return {
-        //     content,
-        //     url: localUrl
-        //   };
-        // }
-        // const resolvers = [resolveMetalsmith, resolveRelativeLocalUrl];
+        function resolveMetalsmith(url) {
+          const isLocalUrl = /^[^ ()"']+/;
+          debug('resolveMetalsmith.before isLocal test');
+          if (!isLocalUrl.test(url)) return null;
 
-        // Not using resolvers until this issue is worked out https://github.com/jamesramsay/hercule/issues/375
-        hercule.transcludeFile(path.join(metalsmith.source(), key), (err, result) => {
+          // const relativePath = path.dirname(sourcePath);
+          const targetKey = path.join(path.dirname(key), url);
+          if (!files[targetKey]) return null;
+          debug('resolved to target key:', targetKey);
+          // const content = files[targetKey].contents.toString();
+
+          const content = new stream.Readable({ encoding: 'utf8' });
+          content.push(files[targetKey].contents.toString());
+          content.push(null);
+
+          return {
+            content,
+            url: path.join(metalsmith.source(), targetKey)
+          };
+        }
+
+        function resolveRelativeLocalUrl(url, sourcePath) {
+          const isLocalUrl = /^[^ ()"']+/;
+          debug('resolveRelativeLocalUrl.before isLocal test');
+          if (!isLocalUrl.test(url)) return null;
+
+          const relativePath = path.dirname(path.join(metalsmith.source(), sourcePath));
+          const localUrl = path.join(relativePath, url);
+          const content = fs.createReadStream(localUrl, { encoding: 'utf8' });
+          debug('resolved to localUrl:', localUrl);
+
+          return {
+            content,
+            url: localUrl
+          };
+        }
+        const resolvers = [resolveMetalsmith, resolveRelativeLocalUrl];
+
+        hercule.transcludeFile(path.join(metalsmith.source(), key), { resolvers }, (err, result) => {
           if (err && err.code === 'ENOENT') {
             debug("Couldn't find the following file and skipped it. " + err.path);
             return cb();
