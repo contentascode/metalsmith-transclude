@@ -6,6 +6,7 @@ const minimatch = require('minimatch');
 const stream = require('stream');
 const matter = require('gray-matter');
 const pointer = require('json-pointer');
+const omit = require('lodash/omit');
 
 /**
  * Expose `plugin`.
@@ -88,22 +89,29 @@ function plugin(options) {
           if (!resolvedKey) return null;
           debug('>>> Found target file          :', resolvedKey);
 
-          const { content: transcluded, metadata = {} } = frontmatter
-            ? extractFrontmatter(files[resolvedKey])
-            : files[resolvedKey];
-          // debug('Processes frontmatter. metadata', metadata);
-          // debug('Processes frontmatter. transcluded', transcluded);
+          // TODO: This should merge the frontmatter with the pipeline file metadata with
+          // a priority to the file metadata to avoid suprises
+          // if this plugin is after file metadata modification steps
 
-          // Local mutation.
+          const transcluded = files[resolvedKey].contents;
+          const metadata = omit(files[resolvedKey], ['contents', 'mode', 'stats']);
+
+          debug('Processes frontmatter. metadata', metadata);
+          debug('Processes frontmatter. transcluded', transcluded);
+
+          // Local mutation, merge with current transcluded file metadata object.
           // current_metadata = { [url]: metadata };
-          pointer.set(current_metadata, '/' + resolvedKey, metadata);
+          frontmatter && pointer.set(current_metadata, '/' + resolvedKey, metadata);
 
           const content = new stream.Readable({ encoding: 'utf8' });
           if (comments)
             content.push(
-              `<!-- transcluded from ${resolvedKey} ${verbose ? 'with resolveMetalsmith.url(' + url + ')' : ''} -->\n`
+              `<!-- Following snippet transcluded from ${resolvedKey} ${verbose
+                ? 'with resolveMetalsmith.url(' + url + ')'
+                : ''} -->\n`
             );
           content.push(transcluded.toString());
+          if (comments) content.push(`\n<!-- End of transcluded snippet from ${resolvedKey} -->\n\n`);
           content.push(null);
 
           return {
@@ -126,85 +134,80 @@ function plugin(options) {
         // where browse is a folder containing activity.md / context.md / framework.md
 
         // Resolve folder names (could happen earlier in the pipeline via views)
+        //
+        // function resolveMetalsmithPattern(url, sourcePath) {
+        //   debug('>>> resolveMetalsmithPattern      :', url);
+        //   sourcePath !== 'string' && debug('>>> SourcePath                    :', sourcePath);
+        //   const isLocalUrl = /^[^ ()"']+/;
+        //   if (!isLocalUrl.test(url)) return null;
+        //
+        //   const targetKey = path.join(path.dirname(key), url);
+        //
+        //   // Content package transclusion resolution should work similarly to require() i.e.
+        //   // `:[](tasks/walk-around)` in `~/.content/.../guided-tour/index.md` will look first in
+        //   //    - workspace/activities/guided-tour/tasks/walk-around/index.md
+        //   //    - workspace/activities/guided-tour/tasks/walk-around.md
+        //   //    ...
+        //   //    - probably just symlinked ??? workspace/toolkit/browse/activity/physical-assessment/guided-tour/tasks/walk-around.md
+        //   //    - workspace/content.yml override?
+        //   //    ...
+        //   //    - ~/.content/.../guided-tour/tasks/walk-around/index.md
+        //   //    - ~/.content/.../guided-tour/tasks/walk-around.md
+        //   //    - ~/.content/content.yml mappings (this would allow sharing of tasks)
+        //
+        //   // TODO: Restrict this very broad string matching resolution.
+        //   const matches = Object.keys(files).filter(key => key.startsWith(targetKey));
+        //   debug('>>> Using targetKey               :', targetKey);
+        //   if (matches.length == 0) {
+        //     debug('>>> No target files found');
+        //     return null;
+        //   }
+        //   debug('>>> Found target files            :', matches.join(' '));
+        //
+        //   const content = new stream.Readable({ encoding: 'utf8' });
+        //
+        //   matches.forEach(key => {
+        //     const transcluded = files[key].contents;
+        //     const metadata = omit(files[key], ['contents', 'mode', 'stats']);
+        //
+        //     debug('Processes frontmatter. metadata', metadata);
+        //     debug('Processes frontmatter. transcluded', transcluded);
+        //
+        //     // Local mutation.
+        //
+        //     // Use json-pointer approach to construct a metadata tree
+        //     // which mimics the file structure with the base path pointing to where
+        //     // the file is transcluded.
+        //
+        //     pointer.set(current_metadata, '/' + key, metadata);
+        //     // current_metadata = {
+        //     //   ...current_metadata,
+        //     //   [url]: { ...current_metadata[url], [key.split('.')[0]]: metadata }
+        //     // };
+        //
+        //     if (comments)
+        //       content.push(
+        //         `<!-- Following snippet transcluded from ${key} ${verbose
+        //           ? 'with resolveMetalsmithPattern.url(' + url + ')'
+        //           : ''} ${verbose ? JSON.stringify(metadata) : ''} -->\n`
+        //       );
+        //     content.push(transcluded.toString());
+        //     if (comments) content.push(`\n<!-- End of transcluded snippet from ${key} -->\n\n`);
+        //   });
+        //
+        //   content.push(null);
+        //
+        //   return {
+        //     content,
+        //     url: sourcePath === 'string' ? targetKey + '/' : path.join(sourcePath, targetKey, '/')
+        //   };
+        // }
 
-        function resolveMetalsmithPattern(url, sourcePath) {
-          debug('>>> resolveMetalsmithPattern      :', url);
-          sourcePath !== 'string' && debug('>>> SourcePath                    :', sourcePath);
-          const isLocalUrl = /^[^ ()"']+/;
-          if (!isLocalUrl.test(url)) return null;
-
-          const targetKey = path.join(path.dirname(key), url);
-
-          // Content package transclusion resolution should work similarly to require() i.e.
-          // `:[](tasks/walk-around)` in `~/.content/.../guided-tour/index.md` will look first in
-          //    - workspace/activities/guided-tour/tasks/walk-around/index.md
-          //    - workspace/activities/guided-tour/tasks/walk-around.md
-          //    ...
-          //    - probably just symlinked ??? workspace/toolkit/browse/activity/physical-assessment/guided-tour/tasks/walk-around.md
-          //    - workspace/content.yml override?
-          //    ...
-          //    - ~/.content/.../guided-tour/tasks/walk-around/index.md
-          //    - ~/.content/.../guided-tour/tasks/walk-around.md
-          //    - ~/.content/content.yml mappings (this would allow sharing of tasks)
-
-          // TODO: Restrict this very broad string matching resolution.
-          const matches = Object.keys(files).filter(key => key.match(targetKey));
-          debug('>>> Using targetKey               :', targetKey);
-          if (matches.length == 0) {
-            debug('>>> No target files found');
-            return null;
-          }
-          debug('>>> Found target files            :', matches.join(' '));
-
-          const content = new stream.Readable({ encoding: 'utf8' });
-
-          matches.forEach(key => {
-            const { content: transcluded, metadata = {} } = frontmatter ? extractFrontmatter(files[key]) : files[key];
-            // debug('Processes frontmatter.', metadata);
-
-            // Local mutation.
-
-            // Use json-pointer approach to construct a metadata tree
-            // which mimics the file structure with the base path pointing to where
-            // the file is transcluded.
-
-            pointer.set(current_metadata, '/' + key, metadata);
-            // current_metadata = {
-            //   ...current_metadata,
-            //   [url]: { ...current_metadata[url], [key.split('.')[0]]: metadata }
-            // };
-
-            content.push(
-              `<!-- transcluded from ${key} ${verbose ? 'with resolveMetalsmithPattern.url(' + url + ')' : ''} ${verbose
-                ? JSON.stringify(metadata)
-                : ''} -->\n`
-            );
-            content.push(transcluded.toString());
-          });
-
-          content.push(null);
-
-          return {
-            content,
-            url: sourcePath === 'string' ? targetKey + '/' : path.join(sourcePath, targetKey, '/')
-          };
-        }
-
-        // Return placeholder content if the target cannot be resolved.
-        function catchAll(url) {
-          debug('>>> catchAll resolver             :', url);
-
-          const content = new stream.Readable({ encoding: 'utf8' });
-          content.push(url.toString());
-          content.push(null);
-
-          return {
-            content,
-            url
-          };
-        }
-
-        const resolvers = [resolveMetalsmith, resolveMetalsmithPattern, catchAll];
+        const resolvers = [
+          resolveMetalsmith,
+          // resolveMetalsmithPattern,
+          (url, source, placeholder) => ({ content: placeholder })
+        ];
 
         hercule.transcludeString(file.contents, { resolvers }, (err, result) => {
           // if (err && err.code === 'ENOENT') {
@@ -228,14 +231,15 @@ function plugin(options) {
         Object.keys(processedFiles).forEach(key => {
           // TODO: might be best to avoid parsing twice the parent...
           // Add frontmatter to the end of the parent frontmatter
-          const parsed = matter(processedFiles[key].contents.toString());
+          // const parsed = matter(processedFiles[key].contents.toString());
           // debug('matter. parsed', parsed);
-          const contents = matter.stringify(parsed.content, Object.assign(parsed.data, processedFiles[key].metadata));
+          //
+          // const contents = matter.stringify(parsed.content, Object.assign(parsed.data, processedFiles[key].metadata));
           // debug('matter.stringify contents', contents);
 
           // Add frontmatter as metadata as well.
           files[key] = Object.assign(files[key], processedFiles[key].metadata, {
-            contents
+            contents: processedFiles[key].contents
           });
         });
 
@@ -245,34 +249,34 @@ function plugin(options) {
     );
   };
 
-  // Based on metalsmith-matters
-
-  /**
-   * Assign metadata in `file` based on the YAML frontmatter in `file.contents`.
-   *
-   * @param {Object} file The Metalsmith file object to extract frontmatter from
-   * @param {string} filePath The path to the file represented by `file`
-   * @param {Object} options Options for the extraction routine
-   * @param {Object} grayMatterOptions Options for gray-matter
-   */
-
-  function extractFrontmatter(file /*, filePath, grayMatterOptions*/) {
-    // if (utf8(file.contents)) {
-    let parsed;
-
-    try {
-      parsed = matter(file.contents.toString(), {} /* grayMatterOptions*/);
-    } catch (e) {
-      const errMsg = 'Invalid frontmatter in file';
-      // if (filePath !== undefined) errMsg += ': ' + filePath;
-      const err = new Error(errMsg);
-      err.code = 'invalid_frontmatter';
-      err.cause = e;
-      throw err;
-    }
-    // require('debug')('test')('extractFrontmatter.parsed.content', parsed.content);
-    // Return instead of mutating file.
-    return { content: parsed.content, metadata: parsed.data };
-  }
+  // // Based on metalsmith-matters
+  //
+  // /**
+  //  * Assign metadata in `file` based on the YAML frontmatter in `file.contents`.
+  //  *
+  //  * @param {Object} file The Metalsmith file object to extract frontmatter from
+  //  * @param {string} filePath The path to the file represented by `file`
+  //  * @param {Object} options Options for the extraction routine
+  //  * @param {Object} grayMatterOptions Options for gray-matter
+  //  */
+  //
+  // function extractFrontmatter(file /*, filePath, grayMatterOptions*/) {
+  //   // if (utf8(file.contents)) {
+  //   let parsed;
+  //
+  //   try {
+  //     parsed = matter(file.contents.toString(), {} /* grayMatterOptions*/);
+  //   } catch (e) {
+  //     const errMsg = 'Invalid frontmatter in file';
+  //     // if (filePath !== undefined) errMsg += ': ' + filePath;
+  //     const err = new Error(errMsg);
+  //     err.code = 'invalid_frontmatter';
+  //     err.cause = e;
+  //     throw err;
+  //   }
+  //   // require('debug')('test')('extractFrontmatter.parsed.content', parsed.content);
+  //   // Return instead of mutating file.
+  //   return { content: parsed.content, metadata: parsed.data };
   // }
+  // // }
 }
