@@ -1,7 +1,7 @@
 {
   "name": "metalsmith-transclude",
   "description": "A metalsmith plugin to transclude content",
-  "repository": "git://github.com/iilab/metalsmith-transclude.git",
+  "repository": "git://github.com/contentascode/metalsmith-transclude.git",
   "version": "0.3.0",
   "license": "MIT",
   "main": "lib/index.js",
