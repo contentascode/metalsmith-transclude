@@ -2,7 +2,7 @@ const debug = require('debug')('metalsmith:transclude');
 const hercule = require('hercule');
 const async = require('async');
 const path = require('path');
-const minimatch = require('minimatch');
+const match = require('multimatch');
 const stream = require('stream');
 const pointer = require('json-pointer');
 const omit = require('lodash/omit');
@@ -29,8 +29,7 @@ module.exports = plugin;
 // resolution would deal with nested keys whereas the current approach should be more predictable)
 
 function plugin(options) {
-  const { pattern = '**/*.md', comments = false, frontmatter = false, verbose = true } =
-    options || {};
+  const { patterns = ['**/*.md'], comments = false, frontmatter = false, verbose = true } = options || {};
 
   return function transclude(files, metalsmith, done) {
     const processedFiles = {};
@@ -40,7 +39,8 @@ function plugin(options) {
       (file, key, cb) => {
         debug('>> Processing %s', key);
 
-        if (!minimatch(key, pattern)) {
+        if (match(key, patterns).length === 0) {
+          debug('skip', key);
           return cb(); // do nothing
         }
 
@@ -130,5 +130,4 @@ function plugin(options) {
       }
     );
   };
-
 }
