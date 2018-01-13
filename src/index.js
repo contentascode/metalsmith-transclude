@@ -57,6 +57,7 @@ function plugin(options) {
           // If there is a sourcePath then we're in a nested transclusion
 
           // const relativePath = path.dirname(sourcePath);
+          // const targetKey = path.join(path.dirname(key), url);
           const targetKey =
             sourcePath !== 'string' ? path.join(path.dirname(sourcePath), url) : path.join(path.dirname(key), url);
 
@@ -95,7 +96,7 @@ function plugin(options) {
 
           return {
             content,
-            url: sourcePath === 'string' ? resolvedKey : path.join(sourcePath, resolvedKey)
+            url: sourcePath === 'string' ? resolvedKey : path.join(path.dirname(sourcePath), resolvedKey)
           };
         }
 
