@@ -29,11 +29,11 @@ module.exports = plugin;
 // resolution would deal with nested keys whereas the current approach should be more predictable)
 
 function plugin(options) {
-  const { patterns = ['**/*.md'], comments = false, frontmatter = false, verbose = true } = options || {};
+  const { patterns = ['**/*.md'], comments = false, frontmatter = false, verbose = true, warning = true } =
+    options || {};
 
   return function transclude(files, metalsmith, done) {
     const processedFiles = {};
-
     async.eachOfSeries(
       files,
       (file, key, cb) => {
@@ -50,15 +50,22 @@ function plugin(options) {
         function resolveMetalsmith(url, sourcePath) {
           debug('>>> resolveMetalsmith             :', url);
           sourcePath !== 'string' && debug('>>> SourcePath                    :', sourcePath);
-          // sourcePath is not needed as we are resolve files that are in the metalsmith file tree
+
           const isLocalUrl = /^[^ ()"']+/;
           if (!isLocalUrl.test(url)) return null;
 
+          // If there is a sourcePath then we're in a nested transclusion
+
           // const relativePath = path.dirname(sourcePath);
-          const targetKey = path.join(path.dirname(key), url);
+          const targetKey =
+            sourcePath !== 'string' ? path.join(path.dirname(sourcePath), url) : path.join(path.dirname(key), url);
+
           debug('>>> Using target key              :', targetKey);
           const resolvedKey = (files[targetKey] && targetKey) || (files[targetKey + '.md'] && targetKey + '.md');
-          if (!resolvedKey) return null;
+          if (!resolvedKey) {
+            if (warning) console.log(`Missing transclusion destination in ${key}: ${targetKey}`);
+            return null;
+          }
           debug('>>> Found target file             :', resolvedKey);
 
           // TODO: This should merge the frontmatter with the pipeline file metadata with
@@ -78,9 +85,9 @@ function plugin(options) {
           const content = new stream.Readable({ encoding: 'utf8' });
           if (comments)
             content.push(
-              `<!-- Following snippet transcluded from ${resolvedKey} ${verbose
-                ? 'with resolveMetalsmith.url(' + url + ')'
-                : ''} ${verbose ? JSON.stringify(metadata) : ''} -->\n`
+              `<!-- Following snippet transcluded from ${resolvedKey} ${
+                verbose ? 'with resolveMetalsmith.url(' + url + ')' : ''
+              } ${verbose ? JSON.stringify(metadata) : ''} -->\n`
             );
           content.push(transcluded.toString());
           if (comments) content.push(`\n<!-- End of transcluded snippet from ${resolvedKey} -->\n\n`);
