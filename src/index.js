@@ -57,9 +57,9 @@ function plugin(options) {
           // If there is a sourcePath then we're in a nested transclusion
 
           // const relativePath = path.dirname(sourcePath);
-          // const targetKey = path.join(path.dirname(key), url);
-          const targetKey =
-            sourcePath !== 'string' ? path.join(path.dirname(sourcePath), url) : path.join(path.dirname(key), url);
+          const targetKey = path.join(path.dirname(key), url);
+          // const targetKey =
+          //   sourcePath !== 'string' ? path.join(path.dirname(sourcePath), url) : path.join(path.dirname(key), url);
 
           debug('>>> Using target key              :', targetKey);
           const resolvedKey = (files[targetKey] && targetKey) || (files[targetKey + '.md'] && targetKey + '.md');
