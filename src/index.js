@@ -54,12 +54,19 @@ function plugin(options) {
           const isLocalUrl = /^[^ ()"']+/;
           if (!isLocalUrl.test(url)) return null;
 
+          const isSectionUrl = /#+/;
+          const section = url.match(isSectionUrl);
+
+          const baseUrl = section ? url.slice(0, section.index) : url;
+
           // If there is a sourcePath then we're in a nested transclusion
 
           // const relativePath = path.dirname(sourcePath);
-          const targetKey = path.join(path.dirname(key), url);
-          // const targetKey =
-          //   sourcePath !== 'string' ? path.join(path.dirname(sourcePath), url) : path.join(path.dirname(key), url);
+          // const targetKey = path.join(path.dirname(key), url);
+          const targetKey =
+            sourcePath !== 'string'
+              ? path.join(path.dirname(sourcePath), baseUrl)
+              : path.join(path.dirname(key), baseUrl);
 
           debug('>>> Using target key              :', targetKey);
           const resolvedKey = (files[targetKey] && targetKey) || (files[targetKey + '.md'] && targetKey + '.md');
@@ -72,31 +79,39 @@ function plugin(options) {
           // TODO: This should merge the frontmatter with the pipeline file metadata with
           // a priority to the file metadata to avoid suprises
           // if this plugin is after file metadata modification steps
+          //
+          // debug('section', section);
 
-          const transcluded = files[resolvedKey].contents;
+          const transcluded = section
+            ? extractSection(
+                files[resolvedKey].contents.toString(),
+                section.input.slice(section.index + section[0].length),
+                section[0]
+              )
+            : files[resolvedKey].contents.toString();
           const metadata = omit(files[resolvedKey], ['contents', 'mode', 'stats']);
 
           debug('Processes frontmatter. metadata', metadata);
-          debug('Processes frontmatter. transcluded', transcluded);
+          debug('Processes frontmatter. transcluded', '\n' + transcluded);
 
           // Local mutation, merge with current transcluded file metadata object.
           // current_metadata = { [url]: metadata };
-          frontmatter && pointer.set(current_metadata, '/' + url.replace('.md', ''), metadata);
+          frontmatter && pointer.set(current_metadata, '/' + baseUrl.replace('.md', ''), metadata);
 
           const content = new stream.Readable({ encoding: 'utf8' });
           if (comments)
             content.push(
               `<!-- Following snippet transcluded from ${resolvedKey} ${
-                verbose ? 'with resolveMetalsmith.url(' + url + ')' : ''
+                verbose ? 'with resolveMetalsmith.url(' + baseUrl + ')' : ''
               } ${verbose ? JSON.stringify(metadata) : ''} -->\n`
             );
-          content.push(transcluded.toString());
+          content.push(transcluded);
           if (comments) content.push(`\n<!-- End of transcluded snippet from ${resolvedKey} -->\n\n`);
           content.push(null);
 
           return {
             content,
-            url: sourcePath === 'string' ? resolvedKey : path.join(path.dirname(sourcePath), resolvedKey)
+            url: resolvedKey
           };
         }
 
@@ -137,5 +152,25 @@ function plugin(options) {
         done();
       }
     );
+    const extractSection = (source, section, mode) => {
+      // debug('source', source);
+      // debug('section', section);
+      // debug('mode', mode);
+      const regexp = new RegExp('^#+ +' + section.replace(/-/g, '[\\W_]'), 'im');
+      // First find the matching starting line for the section header
+      const match = source.match(regexp);
+      const start = match.index;
+      // Depending on the mode, find the ending line
+      if (mode === '#') {
+        // In this mode include only until the next header.
+        const endMatch = source.slice(start + match[0].length).match(/^#+ +(.*)$/m);
+        return endMatch ? source.slice(start, start + endMatch.index + endMatch[0].length) : source.slice(start);
+      } else if (mode === '##') {
+        // In this mode include until before the next header at the same level (or until the end of the file)
+        const sameLevel = new RegExp('^' + match[0].match(/^#+/)[0] + ' +(.*)$', 'm');
+        const endMatch = source.slice(start + match[0].length).match(sameLevel);
+        return endMatch ? source.slice(start, start + endMatch.index + endMatch[0].length) : source.slice(start);
+      }
+    };
   };
 }

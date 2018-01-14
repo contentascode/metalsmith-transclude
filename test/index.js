@@ -10,26 +10,52 @@ describe('metalsmith-transclude', function() {
   });
 
   it('should transclude a simple file in a folder', function(done) {
-    Metalsmith('test/fixtures/simple').use(transclude()).build(function(err) {
-      if (err) return done(err);
-      equal('test/fixtures/simple/build', 'test/fixtures/simple/expected');
-      done();
-    });
+    Metalsmith('test/fixtures/simple')
+      .use(transclude())
+      .build(function(err) {
+        if (err) return done(err);
+        equal('test/fixtures/simple/build', 'test/fixtures/simple/expected');
+        done();
+      });
   });
 
   it('should skip missing missing files', function(done) {
-    Metalsmith('test/fixtures/missing').use(transclude()).build(function(err) {
-      if (err) return done(err);
-      equal('test/fixtures/missing/build', 'test/fixtures/missing/expected');
-      done();
-    });
+    Metalsmith('test/fixtures/missing')
+      .use(transclude())
+      .build(function(err) {
+        if (err) return done(err);
+        equal('test/fixtures/missing/build', 'test/fixtures/missing/expected');
+        done();
+      });
   });
 
   it('should build deep trees in order', function(done) {
-    Metalsmith('test/fixtures/deep').use(transclude()).build(function(err) {
-      if (err) return done(err);
-      equal('test/fixtures/deep/build', 'test/fixtures/deep/expected');
-      done();
-    });
+    Metalsmith('test/fixtures/deep')
+      .use(transclude())
+      .build(function(err) {
+        if (err) return done(err);
+        equal('test/fixtures/deep/build', 'test/fixtures/deep/expected');
+        done();
+      });
+  });
+
+  it('should allow relative links in folder tree', function(done) {
+    Metalsmith('test/fixtures/relative')
+      .use(transclude())
+      .build(function(err) {
+        if (err) return done(err);
+        equal('test/fixtures/relative/build', 'test/fixtures/relative/expected');
+        done();
+      });
+  });
+
+  it('should transclude sections by header', function(done) {
+    Metalsmith('test/fixtures/section')
+      .use(transclude())
+      .build(function(err) {
+        if (err) return done(err);
+        equal('test/fixtures/section/build', 'test/fixtures/section/expected');
+        done();
+      });
   });
 });
