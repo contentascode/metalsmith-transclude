@@ -58,4 +58,14 @@ describe('metalsmith-transclude', function() {
         done();
       });
   });
+
+  it('should transclude sections correctly', function(done) {
+    Metalsmith('test/fixtures/section2')
+      .use(transclude())
+      .build(function(err) {
+        if (err) return done(err);
+        equal('test/fixtures/section2/build', 'test/fixtures/section2/expected');
+        done();
+      });
+  });
 });
