@@ -164,12 +164,12 @@ function plugin(options) {
       if (mode === '#') {
         // In this mode include only until the next header.
         const endMatch = source.slice(start + match[0].length).match(/^#+ +(.*)$/m);
-        return endMatch ? source.slice(start, start + endMatch.index + endMatch[0].length) : source.slice(start);
+        return endMatch ? source.slice(start, start + endMatch.index + match[0].length) : source.slice(start);
       } else if (mode === '##') {
         // In this mode include until before the next header at the same level (or until the end of the file)
         const sameLevel = new RegExp('^' + match[0].match(/^#+/)[0] + ' +(.*)$', 'm');
         const endMatch = source.slice(start + match[0].length).match(sameLevel);
-        return endMatch ? source.slice(start, start + endMatch.index + endMatch[0].length) : source.slice(start);
+        return endMatch ? source.slice(start, start + endMatch.index + match[0].length) : source.slice(start);
       }
     };
   };
